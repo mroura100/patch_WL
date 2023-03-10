@@ -13,13 +13,19 @@ user: "proves"
 opatch_path: "{{ oracle_home }}/OPatch/"
 
 opatchRequiredVersion: "13.9.4.2.11"
+opatchMajorRequiredVersion: "13.9.4.2"
+opatchMinorRequiredVersion: "11"
+
+opatchActual: "{{ opatchVersion.stdout_lines[0].split('.')[0] }}.{{ opatchVersion.stdout_lines[0].split('.')[1] }}.{{ opatchVersion.stdout_lines[0].split('.')[2] }}.{{ opatchVersion.stdout_lines[0].split('.')[3] }}.{{ opatchVersion.stdout_lines[0].split('.')[4] }}"
+opatchActualMajor: "{{ opatchVersion.stdout_lines[0].split('.')[0] }}.{{ opatchVersion.stdout_lines[0].split('.')[1] }}.{{ opatchVersion.stdout_lines[0].split('.')[2] }}.{{ opatchVersion.stdout_lines[0].split('.')[3] }}"
+opatchActualMinor: "{{ opatchVersion.stdout_lines[0].split('.')[4] }}"
 
 PathOpatchUpdate: "/home/{{ user }}/patch/"
 
 javaOld: "jdk1.8.0_181"
 
 ver_actual: "{{ javaVersion.stdout }}"
-ver_actual_major: "{{ ver_actual.split('.')[0]}}.{{ ver_actual.split('.')[1]}}"
+ver_actual_major: "{{ ver_actual.split('.')[0]}}.{{ ver_actual.split('.')[1] }}"
 ver_actual_minor: "{{ ver_actual.split('.')[2].split('_')[1] }}"
 
 #$DOMAIN_HOME -name setDomainEnv.sh
