@@ -1,4 +1,16 @@
 ---
+- name: Check Opatch version
+  tags: opatchVersion,updatePatchWebLogic
+  become: true
+  become_user: "{{ user }}"
+  shell: "source /home/{{ user }}/.bash_profile;{{ opatch_path }}opatch version -jre $JAVA_HOME"
+  register: opatchVersion
+
+- name: La version del opatch es
+  tags: opatchVersion,updatePatchWebLogic
+  debug:
+    msg: " {{ opatchVersion.stdout_lines[0] }}"
+
 - name: Check Java version
   tags: javaVersion,updatePatchWebLogic
   become: true
@@ -17,45 +29,43 @@
     msg: " {{ ver_actual_minor }}"
 
   
-
+- name: Comprova si s'ha d'actualitzar el Java.
+  tags: updateJava
+  when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')
+  block:
 # tasks file for WL_update_patch_and_java
-- name : Copy the JDK and Weblogic Installation files to ORACLE_HOME
-  tags: updateJava
-  become: true
-  copy:
-    src: "{{ item }}"
-    dest: "{{ software_config_files }}"
-    mode: 0755
-  with_items:
-    - "server-jre-8u191-linux-x64.tar.gz"
-  when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')
-    
+  - name: Copy the JDK and Weblogic Installation files to ORACLE_HOME
+    #tags: updateJava
+    become: true
+    copy:
+      src: "{{ item }}"
+      dest: "{{ software_config_files }}"
+      mode: 0755
+    with_items:
+      - "server-jre-8u191-linux-x64.tar.gz"
+      
+  - name: unarchive new java on {{ software_config_files }}
+    #tags: updateJava
+    become: true
+    unarchive:
+      remote_src: true
+      src: "{{ software_config_files }}server-jre-8u191-linux-x64.tar.gz"
+      dest: "{{ java_dir }}"
 
-- name : unarchive new java on {{ software_config_files }}
-  tags: updateJava
-  become: true
-  unarchive:
-    remote_src: true
-    src: "{{ software_config_files }}server-jre-8u191-linux-x64.tar.gz"
-    dest: "{{ java_dir }}"
-  when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')
+  - name: Unlink old Java
+    #tags: updateJava
+    file:
+      path: "{{ java_dir }}jdk" 
+      state: absent
   
 
-- name: Unlink old Java
-  tags: updateJava
-  file:
-    src: "{{ java_dir }}jdk1.8.0_191"
-    dest: "{{ java_dir }}jdk"
-    state: absent
-  when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')
-
-- name: Create a symbolic link of new java
-  tags: updateJava
-  file:
-    src: "{{ java_dir }}jdk1.8.0_191"
-    dest: "{{ java_dir }}jdk"
-    state: link
-  when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')
+  - name: Create a symbolic link of new java
+    #tags: updateJava
+    file:
+      src: "{{ java_dir }}jdk1.8.0_191"
+      dest: "{{ java_dir }}jdk"
+      state: link
+  
 #- name: Stop all services of Weblogic
 #  tags: stopServices
 #  become: true
@@ -66,21 +76,21 @@
 #    - "{{ domain_root_directory }}{{ domain_name }}/bin/stopNodeManager.sh"
 
 
-- name: set new Java in required files
-  tags: replaceline,updateJava
-  become: true
-  become_user: "{{ user }}"
-  replace:
-    path: '{{item.src}}'
-    regexp: '\/\opt\/\{{ javaOld }}'
-    replace: '/opt/jdk'
-  register: replaceline
-  with_items:
-     - { src: "{{ oracle_home }}/oui/.globalEnv.properties"} 
-     - { src: "{{ domain_root_directory }}{{ domain_name }}/bin/setNMJavaHome.sh"}
-     - { src: "{{ domain_root_directory }}{{ domain_name }}/bin/setDomainEnv.sh"}
-     - { src: "{{ domain_root_directory }}{{ domain_name }}/nodemanager/nodemanager.properties"}
-  when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')     
+  - name: set new Java in required files
+    #tags: replaceline,updateJava
+    become: true
+    become_user: "{{ user }}"
+    replace:
+      path: '{{item.src}}'
+      regexp: '\/\opt\/\{{ javaOld }}'
+      replace: '/opt/jdk'
+    register: replaceline
+    with_items:
+       - { src: "{{ oracle_home }}/oui/.globalEnv.properties"} 
+       - { src: "{{ domain_root_directory }}{{ domain_name }}/bin/setNMJavaHome.sh"}
+       - { src: "{{ domain_root_directory }}{{ domain_name }}/bin/setDomainEnv.sh"}
+       - { src: "{{ domain_root_directory }}{{ domain_name }}/nodemanager/nodemanager.properties"}
+  
 
 - name: Create a backup directory if it does not exist
   tags: backup 
@@ -99,7 +109,7 @@
     path: /u01
     dest: /serveis/WL12/backup/all_WL12.tgz
 
-- name : Copy Files to update WebLogic
+- name: Copy Files to update WebLogic
   tags: updatePatchWebLogic
   become: true
   become_user: "{{ user }}"
@@ -124,28 +134,33 @@
   debug:
     msg: " {{ opatchVersion.stdout_lines[0] }}"
 
-- name: Unarchive patch file
-  tags: updatePatchWebLogic
-  become: true
-  become_user: "{{ user }}"
-  unarchive:
-    remote_src: true
-    src: "{{ PathOpatchUpdate }}p34991973_122130_Generic.zip"
-    dest: "{{ PathOpatchUpdate }}"
+- name: Comprova si s'ha d'actualitzar el Opatch.
+  tags: updateOpatch
+  #when: ver_actual_major is version('1.8', '=') and ver_actual_minor is version('191', '<')
+  when: opatchVersion.stdout_lines[0] != {{ opatchRequiredVersion }}
+  block:
+  - name: Unarchive patch file
+    tags: updatePatchWebLogic
+    become: true
+    become_user: "{{ user }}"
+    unarchive:
+      remote_src: true
+      src: "{{ PathOpatchUpdate }}p34991973_122130_Generic.zip"
+      dest: "{{ PathOpatchUpdate }}"
 
 
-- name: Update Opatch
-  tags: updatePatchWebLogic
-  become: true
-  become_user: "{{ user }}"
-  shell: source /home/{{ user }}/.bash_profile;java -jar {{ PathOpatchUpdate }}opatch_generic.jar -silent oracle_home={{ oracle_home }};{{ opatch_path }}opatch version -jre $JAVA_HOME
-  register: newOpatchVersion
-  #when: opatchVersion.stdout_lines[0] != {{ opatchRequiredVersion }}
+  - name: Update Opatch
+    tags: updatePatchWebLogic
+    become: true
+    become_user: "{{ user }}"
+    shell: source /home/{{ user }}/.bash_profile;java -jar {{ PathOpatchUpdate }}opatch_generic.jar -silent oracle_home={{ oracle_home }};{{ opatch_path }}opatch version -jre $JAVA_HOME
+    register: newOpatchVersion
+  #
 
-- name: La version del opatch es
-  tags: opatchVersion,updatePatchWebLogic
-  debug:
-    msg: " {{ newOpatchVersion }}"
+  - name: La version del opatch es
+    tags: opatchVersion,updatePatchWebLogic
+    debug:
+      msg: " {{ newOpatchVersion }}"
 
 - name: Precheck update WL 
   tags: updatePatchWebLogic
